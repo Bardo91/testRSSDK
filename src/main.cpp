@@ -158,76 +158,11 @@ void choosingDevice() {
 				/* Retrieve the sample */
 				PXCCapture::Sample *sample = sm->QuerySample();
 				PXCImage* rgbImage = sample->color;
-				//cv::Mat cvMat;
-				//ConvertPXCImageToOpenCVMat(rgbImage, &cvMat);
-				//cv::imshow("frame", cvMat);
-
-
-				PXCImage::ImageData data;
-				rgbImage->AcquireAccess(PXCImage::ACCESS_READ, &data);
-				PXCImage::ImageInfo imgInfo = rgbImage->QueryInfo();
-				cv::Mat img(imgInfo.height, imgInfo.width, CV_8UC3);
-				auto dataPointer = data.planes[0];
-				for (unsigned i = 0; i < img.rows; i++) {
-					for (unsigned j = 0; j < img.cols; j += 2) {
-						//Get first data (2 pixels)
-						uchar y0 = dataPointer[0];
-						uchar u0 = dataPointer[1];
-						uchar y1 = dataPointer[2];
-						uchar v0 = dataPointer[3];
-						dataPointer += 4;
-						//// Transform to intermedial format
-						// First pixel
-						int c0 = y0 - 16;
-						int d01 = u0 - 128;
-						int e01 = v0 - 128;
-						// second pixel
-						int c1 = y1 - 16;
-
-						//// assign data
-						// First pixel
-						uchar b0 = ((298 * c0 + 516 * d01 + 128) >> 8); // blue
-						uchar g0 = ((298 * c0 - 100 * d01 - 208 * e01 + 128) >> 8); // green
-						uchar r0 = ((298 * c0 + 409 * e01 + 128) >> 8); // red
-						cv::Vec3b p1 = {b0, g0, r0};
-						img.at<cv::Vec3b>(i,j) = p1;
-
-						// second pixel
-						uchar b1 = ((298 * c1 + 516 * d01 + 128) >> 8); // blue
-						uchar g1 = ((298 * c1 - 100 * d01 - 208 * e01 + 128) >> 8); // green
-						uchar r1 = ((298 * c1 + 409 * e01 + 128) >> 8); // red
-						cv::Vec3b p2 = {b1, g1, r1};
-						img.at<cv::Vec3b>(i, j+1) = p2;
-
-					}
-				}
-
-
-				cv::imshow("frame", img);
+				cv::Mat cvMat;
+				ConvertPXCImageToOpenCVMat(rgbImage, &cvMat);
+				cv::imshow("frame", cvMat);
 				cv::waitKey(3);
 
-				/* Display Main & PIP pictures */
-				/*bool pip_update = false;
-				if (pip) {
-					PXCImage *image = (*sample)[pip];
-					if (image) {
-						DisplayPIPImage(image);
-						pip_update = true;
-					}
-				}
-
-				PXCImage::ImageInfo info = {};
-				if (main) {
-					PXCImage* image = (*sample)[main];
-					if (image) {
-						DisplayMainImage(image);
-						pip_update = false;  // pip is updated here as well.
-						info = image->QueryInfo();
-					}
-				}
-
-				if (pip_update) DisplayMainImage(0);
-				if (info.width > 0) Tick(&info);*/
 				/* Resume next frame processing */
 				sm->ReleaseFrame();
 			}
@@ -284,6 +219,47 @@ void ConvertPXCImageToOpenCVMat(PXCImage *inImg, cv::Mat *outImg) {
 	switch (data.format) {
 		/* STREAM_TYPE_COLOR */
 	case PXCImage::PIXEL_FORMAT_YUY2: /* YUY2 image  */
+	{
+		PXCImage::ImageData data;
+		inImg->AcquireAccess(PXCImage::ACCESS_READ, &data);
+		PXCImage::ImageInfo imgInfo = inImg->QueryInfo();
+		outImg->create(imgInfo.height, imgInfo.width, CV_8UC3);
+		auto dataPointer = data.planes[0];
+		for (unsigned i = 0; i < outImg->rows; i++) {
+			for (unsigned j = 0; j < outImg->cols; j += 2) {
+				//Get first data (2 pixels)
+				uchar y0 = dataPointer[0];
+				uchar u0 = dataPointer[1];
+				uchar y1 = dataPointer[2];
+				uchar v0 = dataPointer[3];
+				dataPointer += 4;
+				//// Transform to intermedial format
+				// First pixel
+				int c0 = y0 - 16;
+				int d01 = u0 - 128;
+				int e01 = v0 - 128;
+				// second pixel
+				int c1 = y1 - 16;
+
+				//// assign data
+				// First pixel
+				uchar b0 = ((298 * c0 + 516 * d01 + 128) >> 8); // blue
+				uchar g0 = ((298 * c0 - 100 * d01 - 208 * e01 + 128) >> 8); // green
+				uchar r0 = ((298 * c0 + 409 * e01 + 128) >> 8); // red
+				cv::Vec3b p1 = { b0, g0, r0 };
+				outImg->at<cv::Vec3b>(i, j) = p1;
+
+				// second pixel
+				uchar b1 = ((298 * c1 + 516 * d01 + 128) >> 8); // blue
+				uchar g1 = ((298 * c1 - 100 * d01 - 208 * e01 + 128) >> 8); // green
+				uchar r1 = ((298 * c1 + 409 * e01 + 128) >> 8); // red
+				cv::Vec3b p2 = { b1, g1, r1 };
+				outImg->at<cv::Vec3b>(i, j + 1) = p2;
+
+			}
+		}
+		return;
+	}
 	case PXCImage::PIXEL_FORMAT_NV12: /* NV12 image */
 		throw(0); // Not implemented
 	case PXCImage::PIXEL_FORMAT_RGB32: /* BGRA layout on a little-endian machine */
