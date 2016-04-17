@@ -138,6 +138,30 @@ void choosingDevice() {
 		PXCCapture::Device *device = cm->QueryDevice();
 		device->ResetProperties(PXCCapture::STREAM_TYPE_ANY);
 
+		// Search profiles
+		static const int IDXM_DEVICE = 0;
+		PXCCapture::Device::StreamProfileSet chosenProfiles = {};
+		for (int s = 0, mi = IDXM_DEVICE + 1; s<PXCCapture::STREAM_LIMIT; s++) {
+			PXCCapture::StreamType st = PXCCapture::StreamTypeFromIndex(s);
+			if (!(depthDevInfo.streams & st)) continue;
+		
+			// Get num of profiles
+			int nprofiles = device->QueryStreamProfileSetNum(st);
+
+			// Print out profiles
+			for (int p = 0; p<nprofiles; p++) {
+				PXCCapture::Device::StreamProfileSet profiles = {};
+				if (device->QueryStreamProfileSet(st, p, &profiles) < PXC_STATUS_NO_ERROR) break;
+
+				PXCCapture::Device::StreamProfile &profile = profiles[st];
+				std::cout << profile.imageInfo.width << "x" << profile.imageInfo.height << " - " << profile.frameRate.max << " fps." << std::endl;
+				if (profile.imageInfo.width == 1920 && profile.frameRate.max > 20) {
+					chosenProfiles = profiles;
+					device->SetStreamProfileSet(&chosenProfiles);
+				}
+			}
+			mi++;
+		}
 
 		/* Optional: Set mirror mode */
 		//device->SetMirrorMode(mirror ? PXCCapture::Device::MirrorMode::MIRROR_MODE_HORIZONTAL : PXCCapture::Device::MirrorMode::MIRROR_MODE_DISABLED);
@@ -171,30 +195,6 @@ void choosingDevice() {
 	}
 
 	/* Clean Up */
-	sm->Release();
-}
-
-void rawStreamDeviceSenseManager() {
-	// Create a SenseManager instance
-	PXCSenseManager *sm = PXCSenseManager::CreateInstance();
-
-	// Enable the video stream
-	sm->EnableStream(PXCCapture::STREAM_TYPE_COLOR, 0, 0, 0);
-
-	// Initialization
-	sm->Init();
-
-	// Stream data
-	while (sm->AcquireFrame(true) >= PXC_STATUS_NO_ERROR) {
-
-		// Get the sample data
-		PXCCapture::Sample *sample = sm->QuerySample();
-
-		 // Resume next frame processing
-		sm->ReleaseFrame();
-	}
-
-	// Clean up
 	sm->Release();
 }
 
