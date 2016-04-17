@@ -12,9 +12,14 @@
 #include <pxcmetadata.h>
 #include <pxccapture.h>
 
+#include <opencv2/opencv.hpp>
+
 #include <iostream>
 #include <algorithm>
 #include <string>
+
+void ConvertPXCImageToOpenCVMat(PXCImage *inImg, cv::Mat *outImg);
+
 
 void enumerateDevices() {
 
@@ -152,6 +157,54 @@ void choosingDevice() {
 			if (sts2 >= PXC_STATUS_NO_ERROR) {
 				/* Retrieve the sample */
 				PXCCapture::Sample *sample = sm->QuerySample();
+				PXCImage* rgbImage = sample->color;
+				//cv::Mat cvMat;
+				//ConvertPXCImageToOpenCVMat(rgbImage, &cvMat);
+				//cv::imshow("frame", cvMat);
+
+
+				PXCImage::ImageData data;
+				rgbImage->AcquireAccess(PXCImage::ACCESS_READ, &data);
+				PXCImage::ImageInfo imgInfo = rgbImage->QueryInfo();
+				cv::Mat img(imgInfo.height, imgInfo.width, CV_8UC3);
+				auto dataPointer = data.planes[0];
+				for (unsigned i = 0; i < img.rows; i++) {
+					for (unsigned j = 0; j < img.cols; j += 2) {
+						//Get first data (2 pixels)
+						uchar y0 = dataPointer[0];
+						uchar u0 = dataPointer[1];
+						uchar y1 = dataPointer[2];
+						uchar v0 = dataPointer[3];
+						dataPointer += 4;
+						//// Transform to intermedial format
+						// First pixel
+						int c0 = y0 - 16;
+						int d01 = u0 - 128;
+						int e01 = v0 - 128;
+						// second pixel
+						int c1 = y1 - 16;
+
+						//// assign data
+						// First pixel
+						uchar b0 = ((298 * c0 + 516 * d01 + 128) >> 8); // blue
+						uchar g0 = ((298 * c0 - 100 * d01 - 208 * e01 + 128) >> 8); // green
+						uchar r0 = ((298 * c0 + 409 * e01 + 128) >> 8); // red
+						cv::Vec3b p1 = {b0, g0, r0};
+						img.at<cv::Vec3b>(i,j) = p1;
+
+						// second pixel
+						uchar b1 = ((298 * c1 + 516 * d01 + 128) >> 8); // blue
+						uchar g1 = ((298 * c1 - 100 * d01 - 208 * e01 + 128) >> 8); // green
+						uchar r1 = ((298 * c1 + 409 * e01 + 128) >> 8); // red
+						cv::Vec3b p2 = {b1, g1, r1};
+						img.at<cv::Vec3b>(i, j+1) = p2;
+
+					}
+				}
+
+
+				cv::imshow("frame", img);
+				cv::waitKey(3);
 
 				/* Display Main & PIP pictures */
 				/*bool pip_update = false;
@@ -214,4 +267,68 @@ int main(int _argc, char ** _argv) {
 	choosingDevice();
 
 	system("PAUSE");
+}
+
+
+
+
+void ConvertPXCImageToOpenCVMat(PXCImage *inImg, cv::Mat *outImg) {
+	int cvDataType;
+	int cvDataWidth;
+
+
+	PXCImage::ImageData data;
+	inImg->AcquireAccess(PXCImage::ACCESS_READ, &data);
+	PXCImage::ImageInfo imgInfo = inImg->QueryInfo();
+
+	switch (data.format) {
+		/* STREAM_TYPE_COLOR */
+	case PXCImage::PIXEL_FORMAT_YUY2: /* YUY2 image  */
+	case PXCImage::PIXEL_FORMAT_NV12: /* NV12 image */
+		throw(0); // Not implemented
+	case PXCImage::PIXEL_FORMAT_RGB32: /* BGRA layout on a little-endian machine */
+		cvDataType = CV_8UC4;
+		cvDataWidth = 4;
+		break;
+	case PXCImage::PIXEL_FORMAT_RGB24: /* BGR layout on a little-endian machine */
+		cvDataType = CV_8UC3;
+		cvDataWidth = 3;
+		break;
+	case PXCImage::PIXEL_FORMAT_Y8:  /* 8-Bit Gray Image, or IR 8-bit */
+		cvDataType = CV_8U;
+		cvDataWidth = 1;
+		break;
+
+		/* STREAM_TYPE_DEPTH */
+	case PXCImage::PIXEL_FORMAT_DEPTH: /* 16-bit unsigned integer with precision mm. */
+	case PXCImage::PIXEL_FORMAT_DEPTH_RAW: /* 16-bit unsigned integer with device specific precision (call device->QueryDepthUnit()) */
+		cvDataType = CV_16U;
+		cvDataWidth = 2;
+		break;
+	case PXCImage::PIXEL_FORMAT_DEPTH_F32: /* 32-bit float-point with precision mm. */
+		cvDataType = CV_32F;
+		cvDataWidth = 4;
+		break;
+
+		/* STREAM_TYPE_IR */
+	case PXCImage::PIXEL_FORMAT_Y16:          /* 16-Bit Gray Image */
+		cvDataType = CV_16U;
+		cvDataWidth = 2;
+		break;
+	case PXCImage::PIXEL_FORMAT_Y8_IR_RELATIVE:    /* Relative IR Image */
+		cvDataType = CV_8U;
+		cvDataWidth = 1;
+		break;
+	}
+
+	// suppose that no other planes
+	if (data.planes[1] != NULL) throw(0); // not implemented
+										  // suppose that no sub pixel padding needed
+	if (data.pitches[0] % cvDataWidth != 0) throw(0); // not implemented
+
+	outImg->create(imgInfo.height, data.pitches[0] / cvDataWidth, cvDataType);
+
+	memcpy(outImg->data, data.planes[0], imgInfo.height*imgInfo.width*cvDataWidth*sizeof(pxcBYTE));
+
+	inImg->ReleaseAccess(&data);
 }

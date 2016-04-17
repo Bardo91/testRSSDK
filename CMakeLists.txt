@@ -37,6 +37,10 @@ GroupSources(src)
 #########################################
 find_package(RSSDK REQUIRED)
 
+find_package(OpenCV 2.4.9 REQUIRED)
+set_target_properties(${OpenCV_LIBS} PROPERTIES MAP_IMPORTED_CONFIG_RELWITHDEBINFO RELEASE)
+
+
 #########################################
 ######			Executable		   ######
 #########################################
@@ -46,4 +50,8 @@ add_executable(${PROJECT_NAME} ${ARMTEST_SOURCE_FILES})
 target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/src)
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${RSSDK_INCLUDE_DIRS})
-target_link_libraries(${PROJECT_NAME} LINK_PUBLIC ${RSSDK_LIBRARIES})	
+target_link_libraries(${PROJECT_NAME} LINK_PUBLIC ${RSSDK_LIBRARIES})
+
+target_include_directories(${PROJECT_NAME} PUBLIC ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} LINK_PUBLIC ${OpenCV_LIBS})
+	
