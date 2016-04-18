@@ -94,7 +94,7 @@ void choosingDevice() {
 				std::string devName((wchar_t*)dinfo.name, (wchar_t*)dinfo.name + 224);
 				std::transform(devName.begin(), devName.end(), devName.begin(), tolower);
 				//std::cout << devName << std::endl;
-				if (devName.find("rgb") != std::string::npos) {
+				if (devName.find("realsense") != std::string::npos) {
 					std::cout << "FOUND depth camera!. " << devName << std::endl;
 					depthDevInfo = dinfo;
 				}
@@ -113,8 +113,8 @@ void choosingDevice() {
 		//ERROR
 	}
 
-	sm->EnableStream(PXCCapture::STREAM_TYPE_COLOR, 0, 0, 0);
-	//sm->EnableStream(PXCCapture::STREAM_TYPE_DEPTH, 0, 0, 0);
+	//sm->EnableStream(PXCCapture::STREAM_TYPE_COLOR, 0, 0, 0);
+	sm->EnableStream(PXCCapture::STREAM_TYPE_DEPTH, 0, 0, 0);
 
 	/* Optional: Set file name for playback or recording */
 	PXCCaptureManager *cm = sm->QueryCaptureManager();
@@ -181,9 +181,15 @@ void choosingDevice() {
 			if (sts2 >= PXC_STATUS_NO_ERROR) {
 				/* Retrieve the sample */
 				PXCCapture::Sample *sample = sm->QuerySample();
-				PXCImage* rgbImage = sample->color;
+				PXCImage* rgbImage = sample->color != nullptr? sample->color:sample->depth;
 				cv::Mat cvMat;
 				ConvertPXCImageToOpenCVMat(rgbImage, &cvMat);
+				if (sample->depth != nullptr) {
+					double min, max;
+					cv::minMaxLoc(cvMat, &min, &max, NULL, NULL);
+					cvMat.convertTo(cvMat, CV_8U, 255.0/max);
+				}
+
 				cv::imshow("frame", cvMat);
 				cv::waitKey(3);
 
